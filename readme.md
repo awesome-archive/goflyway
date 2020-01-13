@@ -1,44 +1,46 @@
-# goflyway, HTTP tunnel in Go
+# goflyway v2 - a local port forwarder built on HTTP
 
-goflyway is a tunnel proxy helping you fly across the wall. It is based entirely on HTTP protocol without any other 3rd party libraries. 
+![](https://raw.githubusercontent.com/coyove/goflyway/gdev/.misc/logo.png)
 
-## Run
-If you want to try it now, simply run:
+`master` is the active develop branch and containing v2 code, for the stable v1 release (though it was once called v2.0), please refer to [v1.0 branch](https://github.com/coyove/goflyway/tree/v1.0).
+
+goflyway v2 is a special tool to forward local ports to a remote server securly, just like `ssh -L`.
+
+goflyway uses pure HTTP POST requests to relay TCP connections. There is no CONNECT involved nor needed because goflyway is designed mainly for those people who are behind a CONNECT-less HTTP proxy or want to accelerate connections through static CDNs.
+
+However pure HTTP requesting is definitely a waste of bandwidth if you already have a better network environment, so use `-w` to turn on WebSocket relay, or `-K` to turn on KCP relay if possible.
+
+## Usage
+Forward `localhost:1080` to `server:1080` through `server:80`
+
 ```
-go run main.go -debug
+    Server: ./goflyway :80
+    Client: ./goflyway -L 1080::1080 server:80 -p password
 ```
-on your local computer, or if you prefer your VPS, run:
+
+Forward `localhost:1080` to `server2:1080` through `server:80` using WebSocket
+
 ```
-go run main.go -k=KEY
+    Server: ./goflyway :80
+    Client: ./goflyway -w -L 1080:server2:1080 server:80 -p password
 ```
-at remote then run:
+
+Dynamically forward `localhost:1080` to `server:80` 
+
 ```
-go run main.go -k=KEY -up=VPS_IP:8100
+    Server: ./goflyway :80
+    Client: ./goflyway -D 1080 server:80 -p password
 ```
-at local to connect.
 
-Set your internet proxy to `127.0.0.1:8100` and enjoy.
+HTTP reverse proxy or static file server on the same port:
 
-## Console
-There is a simple web console built inside goflyway: `http://127.0.0.1:8100/?goflyway-console`.
+```
+    ./goflyway :80 -P http://127.0.0.1:8080 
+    ./goflyway :80 -P /var/www/html
+```
 
-![](https://github.com/coyove/goflyway/blob/master/.misc/console.png?raw=true)
+## Write Buffer
 
-## Others
-When comes to speed, goflyway is nearly identical to shadowsocks. But HTTP has (quite large) overheads and goflyway will hardly be faster than those solutions running on their own protocols. (If your ISP deploys QoS, maybe goflyway gets some kinda faster.)
+In HTTP mode when server received some data it can't just send them to the client directly because HTTP is not bi-directional, instead the server must wait until the client requests them, which means these data will be stored in memory for some time.
 
-![](https://github.com/coyove/goflyway/blob/master/.misc/speed.png?raw=true)
-
-However HTTP is much much easier to write and debug, I think this trade-off is absolutely acceptable. If you need more speed, try KCPTUN, BBR, ServerSpeeder...
-
-## Android
-
-I don't know much about programming on Android, but there is still way to run goflyway:
-
-1. Install [Termux](https://f-droid.org/packages/com.termux/) and launch it
-2. `pkg install golang`
-3. `go run main.go -k=KEY -up=VPS_IP:8100`
-4. Connect to wifi and set proxy to `127.0.0.1:8100`
-5. Works on my XZP Android 7.0
-
-![](https://github.com/coyove/goflyway/blob/master/.misc/android.jpg?raw=true)
+You can use `-W bytes` to limit the maximum bytes a server can buffer (for each connection), by default it is 1048576 (1M). If the buffer reaches the limit, the following bytes will be blocked until the buffer has free space for them.
